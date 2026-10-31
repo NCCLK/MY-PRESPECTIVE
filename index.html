@@ -51,7 +51,7 @@ const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"]/g,c=>(
 const N=n=>Math.round(n||0).toLocaleString('en-US'),R=n=>n==null?'–':'Rs. '+N(n),K=n=>{n=+n||0;const a=Math.abs(n);return a>=1e6?(n/1e6).toFixed(2)+'M':a>=1e3?(n/1e3).toFixed(1)+'K':N(n)};
 const sum=(a,f)=>a.reduce((s,x)=>s+(f(x)||0),0),mkey=d=>d?d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'):'',fd=d=>d?String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear():'–';
 function grp(a,kf,vf){const m={};a.forEach(x=>{const k=kf(x);if(k==null||k==='')return;m[k]=(m[k]||0)+(vf?(vf(x)||0):1)});return m}
-const top=(m,n=10)=>Object.entries(m).sort((a,b)=>b[1]-a[1]).slice(0,n);
+const topN=(m,n=10)=>Object.entries(m).sort((a,b)=>b[1]-a[1]).slice(0,n);
 const PAL=['#4f46e5','#06b6d4','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#14b8a6','#84cc16','#f97316','#64748b','#0ea5e9'];
 // ---------- parsing ----------
 function mk(y,m,d){if(m>12&&d<=12)[m,d]=[d,m];return(m<1||m>12||d<1||d>31||y<2000||y>2100)?null:new Date(y,m-1,d)}
@@ -62,25 +62,25 @@ function csv(t){const r=[];let row=[],f='',q=false;for(let i=0;i<t.length;i++){c
 const today=new Date();today.setHours(0,0,0,0);
 const grpOf=c=>!c?'—':/^BC[A-Z]{3}$/.test(c)?'Employee (BC)':'Partner / Other';
 const TIER={50:2,100:5,150:10,200:15};
-let D={};
+let D={};const fut=d=>d&&d>new Date(Date.now()+40*864e5)?null:d;
 function build(raw){
  const g=(r,k)=>String(r[k]??'').trim();
- const str=[];(raw.STR||[]).forEach((r,i)=>{if(i<5)return;const serial=g(r,3),model=g(r,4);if(!serial&&!model)return;str.push({ref:g(r,0)+g(r,1),date:pd(g(r,2)),serial:serial.toUpperCase(),model:model.toUpperCase(),spec:g(r,5),cat:g(r,6).toUpperCase(),to:g(r,9).toUpperCase(),amt:nu(g(r,11)),status:g(r,12),batch:g(r,0)})});
+ const str=[];(raw.STR||[]).forEach((r,i)=>{const serial=g(r,3),model=g(r,4);if(!serial&&!model||/^(SERIAL|MODEL)/i.test(serial)||/^MODEL$/i.test(model))return;str.push({ref:g(r,0)+g(r,1),date:pd(g(r,2)),serial:serial.toUpperCase(),model:model.toUpperCase(),spec:g(r,5),cat:g(r,6).toUpperCase(),to:g(r,9).toUpperCase(),amt:nu(g(r,11)),status:g(r,12),batch:g(r,0)})});
  const sm={};str.forEach(s=>{if(s.serial)sm[s.serial]=s});
- const slr=[];(raw.SLR||[]).forEach((r,i)=>{if(i<4)return;const ref=g(r,0);if(!ref)return;let nm=g(r,11)||g(r,10);const issued=pd(g(r,17)),inv=pd(g(r,16));if(!nm&&!issued&&!inv)return;
+ const slr=[];(raw.SLR||[]).forEach((r,i)=>{const ref=g(r,0);if(!/^MPL\s*NCC\s*\d+/i.test(ref))return;let nm=g(r,11)||g(r,10);const issued=pd(g(r,17)),inv=pd(g(r,16));if(!nm&&!issued&&!inv)return;
   const ph=(nm.match(/\(?\b(0?\d{9,10})\b\)?/)||[])[1]||'';const name=nm.replace(/\(.*?\)/g,'').trim();const o2=g(r,2).toUpperCase(),o1=g(r,1).toUpperCase(),serial=g(r,5).toUpperCase(),st=sm[serial]||{};
   const dv=g(r,19).toUpperCase(),hm=dv.match(/^([A-Z]+?)HO(\d+)$/),pm=g(r,18).toUpperCase().match(/^([A-Z]+?)PR(\d*)/),U=name.toUpperCase();
-  slr.push({ref,o1,o2,batch:g(r,3),serial,model:(g(r,6)||st.model||'').toUpperCase(),spec:g(r,7)||st.spec||'',cat:(g(r,8)||st.cat||'').toUpperCase(),name,ph,amt:nu(g(r,14)),date:issued||inv,
+  slr.push({ref,o1,o2,batch:g(r,3),serial,model:(g(r,6)||st.model||'').toUpperCase(),spec:g(r,7)||st.spec||'',cat:(g(r,8)||st.cat||'').toUpperCase(),name,ph,amt:nu(g(r,14)),date:fut(issued||inv),
    type:!o2?'Cash':/PN$/.test(o2)?'PN':'EP',kind:/RETURN/.test(U)?'Return':/^(NCC|OTE)\b/.test(U)?'Internal':'Customer',
    code:o1,hoCode:hm?hm[1]:'',hoTier:hm?+hm[2]:0,hoRaw:dv,prep:pm?pm[1]:'',prepOk:pm?pm[2]!=='0':false,loc:g(r,20).toUpperCase(),dcost:nu(g(r,21)),dchg:nu(g(r,22)),batchDate:pd(g(r,4))})});
- const acs=[];(raw.ACS||[]).forEach((r,i)=>{if(i<5)return;const name=g(r,5);if(!name)return;const ref=g(r,3).toUpperCase(),inv=nu(g(r,10)),paid=nu(g(r,9))||0,dp=nu(g(r,12))||0,n=nu(g(r,26))||nu(g(r,45)),dpd=pd(g(r,13))||pd(g(r,2));
+ const acs=[];(raw.ACS||[]).forEach((r,i)=>{const name=g(r,5);if(!name||!/^\d+$/.test(g(r,0)))return;const ref=g(r,3).toUpperCase(),inv=nu(g(r,10)),paid=nu(g(r,9))||0,dp=nu(g(r,12))||0,n=nu(g(r,26))||nu(g(r,45)),dpd=pd(g(r,13))||pd(g(r,2));
   const pays=[];for(let k=12;k<=24;k+=2){const a=nu(g(r,k)),d=pd(g(r,k+1));if(a>0&&d)pays.push([d,a])}
   const bal=inv!=null?inv-paid:nu(g(r,11));let od=0,next=null,due=0,inst=null;
   if(n&&inv!=null&&dpd){inst=(inv-dp)/n;for(let k=1;k<=n;k++)if(addM(dpd,k)<=today)due++;od=Math.max(0,Math.min(dp+inst*due-paid,Math.max(bal,0)));if(bal>0&&due<n)next=addM(dpd,due+1)}
   const st=(inv==null||inv<=0)?'Check data':bal<=0?'Completed':od>0?'Overdue':'Active';
-  acs.push({idx:g(r,0),aaf:g(r,1).toUpperCase(),date:pd(g(r,2))||dpd,ref,code:ref.replace(/\d+$/,''),mpl:g(r,4).toUpperCase().replace(/\s+/g,''),name,ph:g(r,6),inv,paid,bal,dp,n,pays,od,next,inst,st,chk:g(r,35),sOd:nu(g(r,37)),late:nu(g(r,38))||0,dpd})});
- const wr=[];(raw.WR||[]).forEach((r,i)=>{if(i<1)return;if(!g(r,12)&&!g(r,0))return;wr.push({code:g(r,1).toUpperCase(),ref:g(r,2),cat:g(r,3).toUpperCase(),date:pd(g(r,18))||pd(g(r,8))||pd(g(r,0)),notif:pd(g(r,8)),issue:g(r,10).slice(0,90),wms:g(r,12),war:g(r,13).toUpperCase()||'UNSET',pay:g(r,14).toUpperCase()||'UNSET',tcs:g(r,15).toUpperCase()||'UNSET',tcsCode:g(r,16).toUpperCase(),rem:g(r,17),chg:nu(g(r,19))})});
- const chq=[];(raw.CHQ||[]).forEach((r,i)=>{if(i<2)return;const a=nu(g(r,3));if(!a)return;chq.push({mpl:g(r,0),no:g(r,1),date:pd(g(r,2)),amt:a,st:/DIPOS|DEPOS/i.test(g(r,4))?'Deposited':'Pending'})});
+  acs.push({idx:g(r,0),aaf:g(r,1).toUpperCase(),date:fut(pd(g(r,2))||dpd),ref,code:ref.replace(/\d+$/,''),mpl:g(r,4).toUpperCase().replace(/\s+/g,''),name,ph:g(r,6),inv,paid,bal,dp,n,pays,od,next,inst,st,chk:g(r,35),sOd:nu(g(r,37)),late:nu(g(r,38))||0,dpd})});
+ const wr=[];(raw.WR||[]).forEach((r,i)=>{if(/^TIMESTAMP$/i.test(g(r,0))||(!g(r,12)&&!g(r,0)))return;wr.push({code:g(r,1).toUpperCase(),ref:g(r,2),cat:g(r,3).toUpperCase(),date:pd(g(r,18))||pd(g(r,8))||pd(g(r,0)),notif:pd(g(r,8)),issue:g(r,10).slice(0,90),wms:g(r,12),war:g(r,13).toUpperCase()||'UNSET',pay:g(r,14).toUpperCase()||'UNSET',tcs:g(r,15).toUpperCase()||'UNSET',tcsCode:g(r,16).toUpperCase(),rem:g(r,17),chg:nu(g(r,19))})});
+ const chq=[];(raw.CHQ||[]).forEach((r,i)=>{const a=nu(g(r,3));if(!a)return;chq.push({mpl:g(r,0),no:g(r,1),date:pd(g(r,2)),amt:a,st:/DIPOS|DEPOS/i.test(g(r,4))?'Deposited':'Pending'})});
  D={str,slr,acs,wr,chq};const am={};acs.forEach(a=>am[a.mpl]=a);D.am=am;
  D.codes=[...new Set([...slr.map(x=>x.code),...slr.map(x=>x.hoCode),...acs.map(x=>x.code),...wr.map(x=>x.code)].filter(Boolean))].sort((a,b)=>(grpOf(a)==grpOf(b)?a.localeCompare(b):grpOf(a)<grpOf(b)?-1:1));
 }
@@ -108,7 +108,7 @@ const tag=(s,c)=>`<span class="tag" style="background:${c}">${esc(s)}</span>`,ST
 // ---------- tabs ----------
 const TABS={
 'Overview'(){const s=fS(),a=fA(),cash=s.filter(x=>x.type=='Cash'),lab=mlab(s.map(x=>x.date),a.map(x=>x.date)),mu=mser(lab,s,x=>x.date),bi=mu.indexOf(Math.max(...mu,0));
- const tp=top(grp(s,x=>x.code),7),tm=top(grp(s,x=>x.model),10),late=a.filter(x=>x.st=='Overdue').sort((x,y)=>y.od-x.od),inv=sum(a,x=>x.inv),pc=inv?Math.round(100*sum(a,x=>x.paid)/inv):0,P=n=>s.length?Math.round(100*n/s.length):0;
+ const tp=topN(grp(s,x=>x.code),7),tm=topN(grp(s,x=>x.model),10),late=a.filter(x=>x.st=='Overdue').sort((x,y)=>y.od-x.od),inv=sum(a,x=>x.inv),pc=inv?Math.round(100*sum(a,x=>x.paid)/inv):0,P=n=>s.length?Math.round(100*n/s.length):0;
  const L=[`🛍️ You sold <b>${N(s.length)} laptops</b> — <b>${P(cash.length)}%</b> paid in cash, <b>${P(s.length-cash.length)}%</b> on easy payment.`];
  if(lab.length&&mu[bi])L.push(`📈 Busiest month: <b>${fm(lab[bi])}</b> with <b>${mu[bi]}</b> sales.`);
  if(lab.length>1)L.push(`🗓️ Latest month ${fm(lab.at(-1))}: <b>${mu.at(-1)}</b> sales vs <b>${mu.at(-2)}</b> in ${fm(lab.at(-2))} (${mu.at(-1)>=mu.at(-2)?'▲ up':'▼ down'}).`);
@@ -129,17 +129,17 @@ const TABS={
  <div class="kpis">${kpi('Customers',N(a.length),'easy-payment contracts','#6366f1','👥')}${kpi('Total contract value',R(inv),'avg '+R(inv/(a.filter(x=>x.inv).length||1)),'#8b5cf6','🧾')}${kpi('Already paid',R(pa),pc+'% of value','#10b981','✅')}${kpi('Still to collect',R(sum(a,x=>Math.max(x.bal||0,0))),N(a.filter(x=>x.bal>0).length)+' open accounts','#f59e0b','⏳')}${kpi('Late right now',R(sum(a,x=>x.od)),N(a.filter(x=>x.st=='Overdue').length)+' customers','#ef4444','🚨')}</div>
  <div class="grid">${cv('e1','How much new business came in each month?',270,'Value of new contracts signed.')}${cv('e2','How much money did we collect each month?',270,'Actual instalments & down payments received.')}${cv('e4','Which seller’s customers owe the most?',270,'Balance still to be paid, by seller code.')}${cv('e5','How long are the payment plans?',270,'Number of instalments chosen.')}</div>`;
  chart('e1','bar',lab,[{label:'New contracts',data:mser(lab,a,x=>x.date,x=>x.inv)}],{money:1});const pm=lab.map(()=>0);a.forEach(x=>x.pays.forEach(p=>{const i=lab.indexOf(mkey(p[0]));if(i>=0)pm[i]+=p[1]}));chart('e2','line',lab,[{label:'Collected',data:pm,color:PAL[2],fill:true,backgroundColor:'#10b98133'}],{money:1});
- const ob=top(grp(a,x=>x.code||'(none)',x=>Math.max(x.bal||0,0)),10);chart('e4','bar',ob.map(x=>x[0]),[{label:'Owed',data:ob.map(x=>x[1])}],{h:1,money:1});const ni=grp(a,x=>x.n?x.n+' instalments':null),ks=Object.keys(ni).sort((x,y)=>parseInt(x)-parseInt(y));chart('e5','bar',ks,[{label:'Customers',data:ks.map(k=>ni[k])}]);
+ const ob=topN(grp(a,x=>x.code||'(none)',x=>Math.max(x.bal||0,0)),10);chart('e4','bar',ob.map(x=>x[0]),[{label:'Owed',data:ob.map(x=>x[1])}],{h:1,money:1});const ni=grp(a,x=>x.n?x.n+' instalments':null),ks=Object.keys(ni).sort((x,y)=>parseInt(x)-parseInt(y));chart('e5','bar',ks,[{label:'Customers',data:ks.map(k=>ni[k])}]);
  return h+table('acs','Customer accounts — click a heading to sort',[{h:'Date',f:x=>x.date,d:x=>fd(x.date)},{h:'Customer',f:x=>x.name},{h:'Phone',f:x=>x.ph},{h:'MPL No.',f:x=>x.mpl},{h:'Seller',f:x=>x.code},{h:'Model',f:x=>D.slrm?.[x.mpl]?.model||''},{h:'Invoice',n:1,f:x=>x.inv,d:x=>N(x.inv)},{h:'Paid',f:x=>x.inv?x.paid/x.inv:0,r:x=>`<span class="bar"><i style="width:${Math.min(100,x.inv?100*x.paid/x.inv:0)}%"></i></span>${x.inv?Math.round(100*x.paid/x.inv):0}%`},{h:'Balance',n:1,f:x=>x.bal,d:x=>N(x.bal)},{h:'Late by',n:1,f:x=>x.od,d:x=>N(x.od)},{h:'Next due',f:x=>x.next,d:x=>fd(x.next)},{h:'Status',f:x=>x.st,r:x=>tag({Active:'On track',Overdue:'Late',Completed:'Fully paid','Check data':'Check'}[x.st],STC[x.st])}],a)},
 'Cash Sales'(){const s=fS().filter(x=>x.type=='Cash'),k=s.filter(x=>x.amt),lab=mlab(s.map(x=>x.date));
  const h=`<div class="kpis">${kpi('Cash units',N(s.length),'customers '+N(s.filter(x=>x.kind=='Customer').length),'#10b981')}${kpi('Recorded revenue',R(sum(k,x=>x.amt)),N(k.length)+' rows with amount')}${kpi('Average price',R(sum(k,x=>x.amt)/(k.length||1)),'')}${kpi('Missing amount',N(s.length-k.length),'cash rows with no invoice amt','#f59e0b')}${kpi('Home delivered',N(s.filter(x=>x.loc&&x.loc!='NCC').length),'delivery location set')}${kpi('Delivery cost',R(sum(s,x=>x.dcost)),'')}${kpi('Handed over (HO)',N(s.filter(x=>x.hoCode).length),'with HO code')}${kpi('Returns / internal',N(s.filter(x=>x.kind!='Customer').length),'','#ef4444')}</div>
  <div class="grid">${cv('c1','Cash units & revenue per month')}${cv('c2','By model')}${cv('c3','By category (STR link)')}${cv('c4','By seller code')}${cv('c5','Price bands')}${cv('c6','Delivery locations')}</div>`;
  chart('c1','bar',lab,[{label:'Units',data:mser(lab,s,x=>x.date),yAxisID:'y'}]);
- const tm=top(grp(s,x=>x.model),10);chart('c2','bar',tm.map(x=>x[0]),[{label:'Units',data:tm.map(x=>x[1])}],{h:1});
+ const tm=topN(grp(s,x=>x.model),10);chart('c2','bar',tm.map(x=>x[0]),[{label:'Units',data:tm.map(x=>x[1])}],{h:1});
  const tc=grp(s,x=>x.cat||'UNKNOWN');chart('c3','doughnut',Object.keys(tc),[{data:Object.values(tc)}]);
- const ts=top(grp(s,x=>x.code||'(none)'),10);chart('c4','bar',ts.map(x=>x[0]),[{label:'Units',data:ts.map(x=>x[1])}],{h:1});
+ const ts=topN(grp(s,x=>x.code||'(none)'),10);chart('c4','bar',ts.map(x=>x[0]),[{label:'Units',data:ts.map(x=>x[1])}],{h:1});
  const bands=['<30K','30–50K','50–70K','70–90K','90K+'],bc=bands.map(()=>0);k.forEach(x=>bc[x.amt<30e3?0:x.amt<50e3?1:x.amt<70e3?2:x.amt<90e3?3:4]++);chart('c5','bar',bands,[{label:'Units',data:bc}]);
- const tl=top(grp(s.filter(x=>x.loc),x=>x.loc),10);chart('c6','bar',tl.map(x=>x[0]),[{label:'Units',data:tl.map(x=>x[1])}],{h:1});
+ const tl=topN(grp(s.filter(x=>x.loc),x=>x.loc),10);chart('c6','bar',tl.map(x=>x[0]),[{label:'Units',data:tl.map(x=>x[1])}],{h:1});
  return h+table('slr','Cash sales (MPL-SLR)',[{h:'Date',f:x=>x.date,d:x=>fd(x.date)},{h:'MPLNCC ref',f:x=>x.ref},{h:'Customer',f:x=>x.name},{h:'Phone',f:x=>x.ph},{h:'Model',f:x=>x.model},{h:'Spec',f:x=>x.spec},{h:'Cat.',f:x=>x.cat},{h:'Serial',f:x=>x.serial},{h:'Amount',n:1,f:x=>x.amt,d:x=>N(x.amt)},{h:'Seller',f:x=>x.code},{h:'HO code',f:x=>x.hoRaw},{h:'Location',f:x=>x.loc},{h:'Batch',f:x=>x.batch},{h:'Kind',f:x=>x.kind}],s)},
 'Staff'(){const s=fS(true),a=D.acs.filter(x=>inR(x.date)),w=D.wr.filter(x=>inR(x.date)),m={};
  const o=c=>m[c]||(m[c]={code:c,cash:0,ep:0,pn:0,ho:0,pts:0,pr:0,acs:0,val:0,out:0,war:0,rev:0});
@@ -156,17 +156,17 @@ const TABS={
  <div class="grid">${cv('t1','Stock intake per month')}${cv('t2','Top models')}${cv('t3','Category')}${cv('t4','Issued to')}</div>
  <h3>🛠 Warranty & repair</h3><div class="kpis">${kpi('Cases',N(w.length),'')}${kpi('Completed',N(w.filter(x=>x.tcs=='COMPLETED').length),'TCS status','#10b981')}${kpi('Charges',R(sum(w,x=>x.chg)),'','#f59e0b')}${kpi('Full warranty',N(w.filter(x=>/FULL/.test(x.war)).length),'','#4f46e5')}</div>
  <div class="grid">${cv('w1','Cases per month')}${cv('w2','Warranty status')}${cv('w3','Payment status')}${cv('w4','Cases by logging code')}</div>`;
- chart('t1','bar',lab,[{label:'Units',data:mser(lab,st,x=>x.date)}]);const tm=top(grp(st,x=>x.model),10);chart('t2','bar',tm.map(x=>x[0]),[{label:'Units',data:tm.map(x=>x[1])}],{h:1});
- const tc=grp(st,x=>x.cat||'UNKNOWN');chart('t3','doughnut',Object.keys(tc),[{data:Object.values(tc)}]);const ti=top(grp(st,x=>x.to||'IN STOCK'),8);chart('t4','bar',ti.map(x=>x[0]),[{label:'Units',data:ti.map(x=>x[1])}],{h:1});
+ chart('t1','bar',lab,[{label:'Units',data:mser(lab,st,x=>x.date)}]);const tm=topN(grp(st,x=>x.model),10);chart('t2','bar',tm.map(x=>x[0]),[{label:'Units',data:tm.map(x=>x[1])}],{h:1});
+ const tc=grp(st,x=>x.cat||'UNKNOWN');chart('t3','doughnut',Object.keys(tc),[{data:Object.values(tc)}]);const ti=topN(grp(st,x=>x.to||'IN STOCK'),8);chart('t4','bar',ti.map(x=>x[0]),[{label:'Units',data:ti.map(x=>x[1])}],{h:1});
  const wl=mlab(w.map(x=>x.date));chart('w1','bar',wl,[{label:'Cases',data:mser(wl,w,x=>x.date)}]);
- [['w2','war'],['w3','pay']].forEach(([id,k])=>{const g=grp(w,x=>x[k]);chart(id,'doughnut',Object.keys(g),[{data:Object.values(g)}])});const wc=top(grp(w,x=>x.code||'(none)'));chart('w4','bar',wc.map(x=>x[0]),[{label:'Cases',data:wc.map(x=>x[1])}],{h:1});
+ [['w2','war'],['w3','pay']].forEach(([id,k])=>{const g=grp(w,x=>x[k]);chart(id,'doughnut',Object.keys(g),[{data:Object.values(g)}])});const wc=topN(grp(w,x=>x.code||'(none)'));chart('w4','bar',wc.map(x=>x[0]),[{label:'Cases',data:wc.map(x=>x[1])}],{h:1});
  const cq=D.chq;return h+`<div class="card" style="margin-bottom:14px"><h3>Cheques (CHEQUE sheet)</h3>${N(cq.length)} cheques · ${tag('Deposited '+R(sum(cq.filter(c=>c.st=='Deposited'),c=>c.amt)),'#10b981')} ${tag('Pending '+R(sum(cq.filter(c=>c.st!='Deposited'),c=>c.amt)),'#f59e0b')}</div>`+
  table('war','Warranty & repair cases',[{h:'Date',f:x=>x.date,d:x=>fd(x.date)},{h:'WMS',f:x=>x.wms},{h:'Code',f:x=>x.code},{h:'NCC ref',f:x=>x.ref},{h:'Cat.',f:x=>x.cat},{h:'Issue',f:x=>x.issue},{h:'Warranty',f:x=>x.war},{h:'Payment',f:x=>x.pay},{h:'TCS',f:x=>x.tcs},{h:'TCS code',f:x=>x.tcsCode},{h:'Remarks',f:x=>x.rem},{h:'Charges',n:1,f:x=>x.chg}],w)+
  table('str','Stock list',[{h:'Date',f:x=>x.date,d:x=>fd(x.date)},{h:'Ref',f:x=>x.ref},{h:'Serial',f:x=>x.serial},{h:'Model',f:x=>x.model},{h:'Spec',f:x=>x.spec},{h:'Cat.',f:x=>x.cat},{h:'Issued to',f:x=>x.to},{h:'Sold?',f:x=>sold.has(x.serial)?'Yes':'No'}],st)},
-'How We Work'(){const S=D.slr,nums=S.map(x=>+x.ref.replace(/\D/g,'')).filter(Boolean),pat=(a,f)=>top(grp(a,f),8).map(x=>`<span class="pill"><code>${esc(x[0])}</code> × ${x[1]}</span>`).join('');
+'How We Work'(){const S=D.slr,nums=S.map(x=>+x.ref.replace(/\D/g,'')).filter(Boolean),pat=(a,f)=>topN(grp(a,f),8).map(x=>`<span class="pill"><code>${esc(x[0])}</code> × ${x[1]}</span>`).join('');
  const shape=v=>String(v||'').replace(/[A-Z]+/g,m=>m.length>1?m[0]+'…':m).replace(/\d+/g,'#');
  const slrEP=S.filter(x=>x.type=='EP'&&x.ref),miss=slrEP.filter(x=>!D.am[x.ref]).length,acsNo=D.acs.filter(x=>!S.some(s=>s.ref==x.mpl)).length;
- const dq=top(grp(D.acs,x=>/^CHECK/.test(x.chk)?x.chk:null),8);
+ const dq=topN(grp(D.acs,x=>/^CHECK/.test(x.chk)?x.chk:null),8);
  const h=`<div class="card" style="margin-bottom:14px"><h3>Business flow, as recorded in the sheet</h3><div class="flow"><div>1 · Stock in<br><small>MPL-STR (batch+no.)</small></div>→<div>2 · Sale<br><small>MPL-SLR (MPLNCC####)</small></div>→<div>3a · Cash: invoice amount</div><b>or</b><div>3b · Easy payment: AAF/PNF + MPL-ACS</div>→<div>4 · Prepare &amp; hand over<br><small>…PR / …HO050-200</small></div>→<div>5 · Warranty<br><small>WMS#### + TCS</small></div></div></div>
  <div class="grid"><div class="card"><h3>How reference numbers are built</h3><table><tr><td><b>Sales ref</b></td><td><code>MPLNCC1000</code> = MPL + NCC + running no. (first <b>1000</b>, pre-listed to 2000). Latest used: <b>${Math.max(...nums,0)}</b> · ${N(S.length)} sales recorded.</td></tr>
  <tr><td><b>Stock ref</b></td><td>Batch prefix + running no. from 1001, e.g. <code>WLC1001</code> (STR). SLR “Batch no.” such as <code>WLC-11</code> = the purchase lot. ${pat(D.str,x=>x.batch)}</td></tr>
